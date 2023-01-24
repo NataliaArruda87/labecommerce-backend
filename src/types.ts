@@ -21,5 +21,5 @@ export type TPurchase = {
 export enum CATEGORY {
     ACESSORIES = "acessorio",
     CLOTHS =  "roupa",
-    ELETRONICS = "eletronicos"
+    ELETRONICS = "eletronico"
 }
