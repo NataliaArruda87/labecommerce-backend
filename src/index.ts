@@ -146,7 +146,7 @@ app.put('/users/:id', (req: Request, res: Response) => {
     res.status(200).send("Atualização realizada com sucesso")
 })
 
-// Get Product By id
+// Edit Product By id
 app.put('/products/:id', (req: Request, res: Response) => {
     const id = req.params.id
 
