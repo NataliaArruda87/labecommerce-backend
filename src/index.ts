@@ -70,21 +70,25 @@ app.get('/products', async (req: Request, res: Response) => {
 
 
 // Search Product
-app.get('/products/search', (req: Request, res: Response) => {
+app.get('/products/search', async (req: Request, res: Response) => {
     try {
-        const q = req.query.q as string
+        const name = req.query.name as string | undefined
 
-        if (q.length <= 0) {
-            res.status(400)
-            throw new Error("A palavra utilizada para busca deve ter pelo menos um caratére")
+        if (name !== undefined) {
+            if (name.length <= 0) {
+                res.status(400)
+                throw new Error("A palavra utilizada para busca deve ter pelo menos um caratére")
+            }
         }
 
-        const result = products.filter((product) => {
-        return product.name.toLocaleLowerCase().includes(q.toLocaleLowerCase())
-    })
-
-    res.status(200).send(result)
+        const result = await db.raw(`
+        SELECT * FROM products
+        WHERE name LIKE "%${name}%"
+        `)
         
+        res.status(200).send(result)
+        /*const result = products.filter((product) => {
+        return product.name.toLocaleLowerCase().includes(q.toLocaleLowerCase())*/
     } catch (error) {
         console.log(error)
 
@@ -241,50 +245,38 @@ app.get('/purchases', async (req: Request, res: Response) => {
 
 
 //Create Purchase
-app.post('/purchases', (req: Request, res: Response) => {
+app.post('/purchases', async (req: Request, res: Response) => {
     try {
-        const { userId, productId, quantity, totalPrice } = req.body as TPurchase
+        
+        const id = req.body.id
+        const total_price = req.body.total_price
+        const buyer_id = req.body.buyer_id
 
-        const newPurchase = {
-            userId,
-            productId,
-            quantity,
-            totalPrice
-        }
-
-        if (!userId) {
+        if (!id) {
             res.status(404)
-            throw new Error("Adicione um Id de usuário para criar uma nova compra!")
+            throw new Error("Adicione um Id de compra para criar uma nova compra!")
         }
 
-        if (!productId) {
+        if (!buyer_id) {
             res.status(404)
-            throw new Error("Adicione um id de produto para criar uma nova compra!")
+            throw new Error("Adicione um id de comprador para criar uma nova compra!")
         }
 
-        if (!quantity) {
-            res.status(404)
-            throw new Error("Adicione uma quantidade de produtos para criar uma nova compra!")
-        }
-
-        if (!totalPrice) {
+        if (!total_price) {
             res.status(404)
             throw new Error("Adicione o valor total dos produtos para criar uma nova compra!")
         }
 
-        if(!(users.find((user) => user.id === userId))) {
+        if(!(users.find((user) => user.id === buyer_id))) {
             res.status(404)
             throw new Error("O usuário não existe. Escolha um usuário valido.")
         }
 
-        if(!(products.find((product) => product.id === productId))) {
-            res.status(404)
-            throw new Error("O produto não existe. Escolha um produto valido.")
-        }
-
-        purchases.push(newPurchase)
-
-        res.status(201).send("Compra realizado com sucesso!")
+        await db.raw(`
+        INSERT INTO purchases(id, total_price, buyer_id)
+        VALUES("${id}", "${total_price}", "${buyer_id}")
+    `)
+        res.status(201).send("Compra cadastrada com sucesso!")
         
     } catch (error) {
         console.log(error)
@@ -303,16 +295,16 @@ app.post('/purchases', (req: Request, res: Response) => {
 
 
 //Get Products by Id
-app.get('/products/:id', (req: Request, res: Response) => {
+app.get('/products/:id', async(req: Request, res: Response) => {
     try {
         const id = req.params.id
 
-        const result = products.find((product) => product.id === id)
-
-        if (!result) {
+        if (!(products.find((product) => product.id === id))) {
             res.status(404)
             throw new Error("Produto não encontrada, verifique a Id!")
         }
+
+        const result = await db("products").where({ id: id })
 
         res.status(200).send(result)
         
@@ -333,7 +325,7 @@ app.get('/products/:id', (req: Request, res: Response) => {
 
 
 // Get Purchases by user Id
-app.get('/users/:id/purchases', (req: Request, res: Response) => {
+app.get('/users/:id/purchases', async (req: Request, res: Response) => {
     try {
         const id = req.params.id
 
@@ -341,8 +333,9 @@ app.get('/users/:id/purchases', (req: Request, res: Response) => {
             res.status(404)
             throw new Error("O usuário não existe. Escolha um usuário valido para ser deletado.")
         }
-
-        res.status(200).send(getAllPurchasesFromUserId(id))
+        const result = await db("purchases").where({ buyer_id: id })
+        
+        res.status(200).send(result)
 
     } catch (error) {
          console.log(error)
@@ -362,20 +355,18 @@ app.get('/users/:id/purchases', (req: Request, res: Response) => {
 
 
 //Delete User by Id
-app.delete('/users/:id', (req: Request, res: Response) => {
+app.delete('/users/:id', async (req: Request, res: Response) => {
     try {
-        const id = req.params.id
+        const idToDelete = req.params.id
 
-        if(!(users.find((user) => user.id === id))) {
+        const [userIdToDelete] = await db("users").where({ id: idToDelete  })
+
+        if(!userIdToDelete) {
             res.status(404)
-            throw new Error("O usuário não existe. Escolha um usuário valido para ser deletado.")
+            throw new Error("O usuário não existe. Escolha um usuário valido para ser deletado.") 
         }
-
-        const indexToRemove = users.findIndex((user) => user.id === id)
-        
-        if (indexToRemove >= 0) {
-            users.splice(indexToRemove, 1)
-        }
+ 
+        await db("users").del().where({ id: idToDelete })
 
         res.status(200).send("Usuário deletado com sucesso")
         
@@ -396,20 +387,18 @@ app.delete('/users/:id', (req: Request, res: Response) => {
 
 
 //Delete Product by Id
-app.delete('/products/:id', (req: Request, res: Response) => {
+app.delete('/products/:id', async (req: Request, res: Response) => {
    try {
         const id = req.params.id
 
-        if(!(products.find((product) => product.id === id))) {
-            res.status(404)
-            throw new Error("O produto não existe. Escolha um produto valido para ser deletado.")
-        }
+        const [productIdToDelete] = await db("products").where({id: id})
 
-        const indexToRemove = products.findIndex((product) => product.id === id)
-        
-        if (indexToRemove >= 0) {
-            products.splice(indexToRemove, 1)
+        if(!productIdToDelete) {
+            res.status(404)
+            throw new Error("O usuário não existe. Escolha um usuário valido para ser deletado.") 
         }
+        
+        await db("products").del().where({id: id})
 
         res.status(200).send("Produto deletado com sucesso")
     
@@ -435,30 +424,30 @@ app.put('/users/:id', async(req: Request, res: Response) => {
         const id = req.params.id
         const { email, password } = req.body 
 
-        if(!(users.find((user) => user.id === id))) {
+        const [result] = await db("users").where({ id: id })
+
+        if (!result) {
             res.status(404)
-            throw new Error("O usuário não existe. Escolha um usuário valido para editar.")
+            throw new Error("'id' não encontrado")
         }
 
-        const newEmail = req.body.email
-        const newPassword = req.body.password
-
-        if (!newEmail) {
+        if (!email) {
             res.status(404)
             throw new Error("Adicione um email para o usuário!")
         }
 
-        if (!newPassword) {
+        if (!password) {
             res.status(404)
             throw new Error("Adicione uma senha para o usuário!")
         }
 
-        const user = users.find((user) => user.id === id)
-        
-        if(user) {
-            user.email = newEmail || user.email
-            user.password = newPassword || user.password
+        const userUpdate = {
+            email: email || result.email,
+            password: password || result.password
         }
+        
+        
+        await db("users").update(userUpdate).where({ id: id })
         
         res.status(200).send("Atualização realizada com sucesso")
         
@@ -480,41 +469,41 @@ app.put('/users/:id', async(req: Request, res: Response) => {
 
 
 // Edit Product By id
-app.put('/products/:id', (req: Request, res: Response) => {
+app.put('/products/:id', async (req: Request, res: Response) => {
     try {
         const id = req.params.id
 
-        if(!(products.find((product) => product.id === id))) {
+        const { name, price, category } = req.body 
+
+        const [result] = await db("products").where({ id: id })
+
+        if (!result) {
             res.status(404)
-            throw new Error("O produto não existe. Escolha um produto valido para editar.")
+            throw new Error("'id' não encontrado")
         }
 
-        const newName = req.body.name as string | undefined
-        const newPrice = req.body.price as number | undefined
-        const newCategory = req.body.category as string | undefined
-
-        if (!newName) {
+        if (!name) {
             res.status(404)
             throw new Error("Adicione um nome para o produto!")
         }
 
-        if (!newPrice) {
+        if (!price) {
             res.status(404)
             throw new Error("Adicione um preço para produto!")
         }
 
-        if (!newCategory) {
+        if (!category) {
             res.status(404)
             throw new Error("Adicione uma categoria para o produto!")
         }
-
-        const product = products.find((product) => product.id === id)
         
-        if(product) {
-            product.name = newName || product.name
-            product.category = newCategory || product.category
-            product.price = newPrice || product.price
+        const productUpdate = {
+            name: name || result.name,
+            price: price || result.price,
+            category: category || result.category
         }
+        
+        await db("products").update(productUpdate).where({ id: id })
         
         res.status(200).send("Atualização realizada com sucesso")
 
