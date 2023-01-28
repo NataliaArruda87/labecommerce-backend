@@ -2,6 +2,7 @@ import { users, products, purchases, getAllPurchasesFromUserId } from "./databas
 import express, { Request, Response } from "express";
 import cors from "cors"
 import { TProduct, TPurchase, TUser } from "./types";
+import { db } from "./database/knex";
 
 const app = express()
 app.use(express.json());
@@ -19,10 +20,12 @@ app.get('/ping', (req: Request, res: Response) => {
 
 
 //Get All Users
-app.get('/users', (req: Request, res: Response) => {
+app.get('/users', async (req: Request, res: Response) => {
     try {
         
-        res.status(200).send(users)  
+        const result = await db.raw(`SELECT * FROM users`)
+        
+        res.status(200).send(result)  
 
     } catch (error) {
         
@@ -42,9 +45,12 @@ app.get('/users', (req: Request, res: Response) => {
 
 
 //Get All Products
-app.get('/products', (req: Request, res: Response) => {
+app.get('/products', async (req: Request, res: Response) => {
     try {
-        res.status(200).send(products)
+        
+        const result = await db.raw(`SELECT * FROM products`)
+
+        res.status(200).send(result)
 
     } catch (error) {
         
@@ -96,15 +102,12 @@ app.get('/products/search', (req: Request, res: Response) => {
 
 
 //Create Users
-app.post('/users', (req: Request, res: Response) => {
+app.post('/users', async (req: Request, res: Response) => {
     try {
-        const { id, email, password } = req.body as TUser
-
-        const newUser = {
-            id,
-            email,
-            password
-        }
+        
+        const id = req.body.id
+        const email = req.body.email
+        const password = req.body.password
 
         if (!id) {
             res.status(404)
@@ -131,7 +134,10 @@ app.post('/users', (req: Request, res: Response) => {
             throw new Error("Esse email já existe. Cadastre outro.")
         }
 
-        users.push(newUser)
+        await db.raw(`
+            INSERT INTO users(id, email, password)
+            VALUES("${id}", "${email}", "${password}")
+        `)
 
         res.status(201).send("Cdastro de novo usuário realizado com sucesso!")
     
@@ -152,17 +158,14 @@ app.post('/users', (req: Request, res: Response) => {
 
 
 //Create Product
-app.post('/products', (req: Request, res: Response) => {
+app.post('/products', async(req: Request, res: Response) => {
     try {
-        const { id, name, price, category } = req.body as TProduct
-
-        const newProduct = {
-            id,
-            name,
-            price,
-            category
-        }
-
+        
+        const id = req.body.id
+        const name = req.body.name
+        const price = req.body.price
+        const category = req.body.category
+       
         if (!id) {
             res.status(404)
             throw new Error("Adicione um id para criar um novo produto!")
@@ -188,7 +191,10 @@ app.post('/products', (req: Request, res: Response) => {
             throw new Error("Esse produto já existe. Cadastre outro.")
         }
     
-        products.push(newProduct)
+        await db.raw(`
+        INSERT INTO products(id, name, price, category)
+        VALUES("${id}", "${name}", "${price}", "${category}")
+    `)
     
         res.status(201).send("Cdastro de novo produto realizado com sucesso!")
         
@@ -211,9 +217,12 @@ app.post('/products', (req: Request, res: Response) => {
 
 
 //Get All Purchases
-app.get('/purchases', (req: Request, res: Response) => {
+app.get('/purchases', async (req: Request, res: Response) => {
     try {
-        res.status(200).send(purchases)
+
+        const result = await db.raw(`SELECT * FROM purchases`)
+
+        res.status(200).send(result)
         
     } catch (error) {
         console.log(error)
@@ -421,17 +430,18 @@ app.delete('/products/:id', (req: Request, res: Response) => {
 
 
 //Edit User By Id
-app.put('/users/:id', (req: Request, res: Response) => {
+app.put('/users/:id', async(req: Request, res: Response) => {
     try {
         const id = req.params.id
+        const { email, password } = req.body 
 
         if(!(users.find((user) => user.id === id))) {
             res.status(404)
             throw new Error("O usuário não existe. Escolha um usuário valido para editar.")
         }
 
-        const newEmail = req.body.email as string | undefined
-        const newPassword = req.body.password as string | undefined
+        const newEmail = req.body.email
+        const newPassword = req.body.password
 
         if (!newEmail) {
             res.status(404)
