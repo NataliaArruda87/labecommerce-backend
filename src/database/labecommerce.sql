@@ -37,6 +37,9 @@ SELECT * FROM purchases;
 
 SELECT * FROM purchases_products;
 
+SELECT * FROM products
+WHERE name = 'anel';
+
 DROP TABLE purchases;
 
 INSERT INTO users(id,email,password)
@@ -56,13 +59,27 @@ VALUES
 INSERT INTO purchases(id,total_price,paid,buyer_id)
 VALUES
     ("p001", 1500, 1, "001"),
-    ("p002", 40, 2, "001"),
-    ("p003", 4800, 2, "002"),
-    ("p004", 120, 3, "002"),
-    ("p005", 100, 5, "003"),
-    ("p006", 80, 1, "003");
+    ("p002", 40, 1, "001"),
+    ("p003", 4800, 1, "002"),
+    ("p004", 120, 0, "002"),
+    ("p005", 100, 1, "003"),
+    ("p006", 80, 0, "003");
 
+INSERT INTO purchases_products (purchase_id, product_id, quantity)
+VALUES 
+    ("p001", "1013", 1), 
+    ("p002", "1011", 1), 
+    ("p003", "1014", 2), 
+    ("p004", "1011", 3), 
+    ("p005", "1015", 5), 
+    ("p006", "1012", 1);
 
-
+SELECT * FROM purchases_products
+INNER JOIN products 
+ON purchases_products.product_id = products.id
+INNER JOIN purchases 
+ON purchases_products.purchase_id = purchases.id
+INNER JOIN users
+ON purchases.buyer_id = users.id;
 
 
